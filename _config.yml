@@ -19,7 +19,7 @@ avatar: {{ site.baseurl }}/images/savings pig.jpg
 footer-links:
   dribbble:
   email:
-  facebook: https://www.facebook.com/LittleBigEconomy/
+  facebook: LittleBigEconomy
   flickr: 
   github: chaluny.github.io
   instagram: 
