@@ -3,8 +3,8 @@ layout: post
 title: Markdown Style Guide
 ---
 
-This is a first attempt to write a post
-This is the second line
+## This is a first attempt to write a post
+### This is the second line
 
 Third line with two line breaks
 
@@ -19,9 +19,9 @@ An image, located within /images
 
 _style italic_
 
-> quotation
-> quotation2
-> quotation3
+> quotation  
+> quotation2  
+> quotation3  
 
 Use two trailing spaces  
 on the right  
