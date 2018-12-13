@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Markdown Style Guide
+title: This is the first post!
 ---
 
 ## This is a first attempt to write a post
