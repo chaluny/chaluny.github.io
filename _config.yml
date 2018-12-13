@@ -3,13 +3,13 @@
 #
 
 # Name of your site (displayed in the header)
-name: כלכלה גדולה בקטנה
+name: כלכלה גדולה בקטנה2
 
 # Short bio or description (displayed in the header)
 description: כלכלנים מדברים על כלכלה
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
-avatar: # {{ site.baseurl }}/images/savings-pig.jpg
+avatar: {{ site.baseurl }}/images/savings-pig.jpg
 
 #
 # Flags below are optional
