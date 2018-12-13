@@ -9,7 +9,7 @@ name: כלכלה גדולה בקטנה
 description: כלכלנים מדברים על כלכלה
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
-avatar: "{{ site.baseurl }}/images/savings-pig.jpg"
+avatar: "{{ site.baseurl }}/images/Speck.jpg"
 
 #
 # Flags below are optional
