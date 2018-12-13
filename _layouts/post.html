@@ -9,7 +9,7 @@ layout: default
     <p style="font-size:12px">
       פורסם
       {% assign m = page.date | date: "%-m" %}
-      {{ page.date | date: "%-d" }}ב{% case m %}{% when '1' %}ינואר {% when '2' %}פברואר {% when '3' %}מרץ {% when '4' %}אפריל {% when '5' %}מאי {% when '6' %}יוני {% when '7' %}יולי {% when '8' %}אוגוסט {% when '9' %}ספטמבר {% when '10' %}אוקטובר {% when '11' %}נובמבר {% when '12' %}דצמבר {% endcase %} {{ page.date | date: "%Y" }}
+      {{ page.date | date: "%-d" }} ב{% case m %}{% when '1' %}ינואר {% when '2' %}פברואר {% when '3' %}מרץ {% when '4' %}אפריל {% when '5' %}מאי {% when '6' %}יוני {% when '7' %}יולי {% when '8' %}אוגוסט {% when '9' %}ספטמבר {% when '10' %}אוקטובר {% when '11' %}נובמבר {% when '12' %}דצמבר {% endcase %} {{ page.date | date: "%Y" }}
       </p>
   </div>
   
