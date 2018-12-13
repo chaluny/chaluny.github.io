@@ -7,7 +7,7 @@ published: true
 
 זהו פוסט חדש בעמוד הניסיו ןשל כלכלה גדולה בקטנה
 
-![Speck.JPG]("{{site.baseurl}}/images/speck.JPG")
+!Speck.JPG"{{site.baseurl}}/images/Speck.JPG"
 
 זאת הייתה תמונה לניסיון
 
