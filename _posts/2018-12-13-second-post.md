@@ -1,11 +1,13 @@
 ---
 published: true
 ---
-## 2פוסט חדש
+
+
+## 3פוסט חדש
 
 זהו פוסט חדש בעמוד הניסיו ןשל כלכלה גדולה בקטנה
 
-![Speck.JPG]("{{site.baseurl}}/images/Speck.JPG")
+![Speck.JPG]("{{site.baseurl}}/images/speck.JPG")
 
 זאת הייתה תמונה לניסיון
 
