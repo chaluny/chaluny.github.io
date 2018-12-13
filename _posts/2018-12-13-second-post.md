@@ -5,7 +5,7 @@ published: true
 
 זהו פוסט חדש בעמוד הניסיו ןשל כלכלה גדולה בקטנה
 
-![Speck.JPG]("{{site.baseurl}}/images/Speck.JPG")
+![Speck.JPG]("{{site.baseurl}}/images/savings-pig.JPG")
 
 זאת הייתה תמונה לניסיון
 
