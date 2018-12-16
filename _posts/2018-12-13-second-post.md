@@ -1,5 +1,6 @@
 ---
 published: true
+author: אמר בור
 ---
 
 
