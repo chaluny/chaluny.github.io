@@ -3,7 +3,7 @@ layout: post
 title: זה הפוסט הראשון!
 published: true
 author: חלוני
-image: "{{ site.url }}/images/savings-pig.jpg"
+image: {{ site.url }}/images/savings-pig.jpg
 ---
 
 ## This is a first attempt to write a post
