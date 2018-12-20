@@ -20,7 +20,7 @@
     <!-- facebook Open Graph Metadatas -->
     <meta content="your_facebook_app_id" property="fb:app_id">
     <meta content="{{ site.title }}" property="og:site_name">
-    <meta content="{{ site.baseurl }}/images/savings-pig.jpg" property="og:image">
+    
     {% if page.title %}
         <meta content="{{ page.title }}" property="og:title">
     {% else %}
@@ -45,6 +45,8 @@
     {% endif %}
     {% if page.image %}
         <meta content="{{ page.image }}" property="og:image">
+    {% else %}
+        <meta content="{{ site.baseurl }}/images/savings-pig.jpg" property="og:image">
     {% endif %}
     {% if page.categories %}
         {% for category in page.categories limit:1 %}
