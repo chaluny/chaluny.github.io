@@ -1,15 +1,12 @@
 ---
 layout: page
-title: About
+title: אודות
 permalink: /about/
 ---
 
-Some information about you!
+כלכלה גדולה בקטנה היא קבוצה של כלכלנים ובוגרי תארים מתקדמים בכלכלה השמה אשר מחויבים לקידום השיח הכלכלי בישראל.  
 
-### More Information
 
-A place to include any other types of information that you'd like to include about yourself.
+### צרו קשר דרך עמוד הפייסבוק
 
-### Contact me
-
-[email@domain.com](mailto:email@domain.com)
+[כלכלה גדולה בקטנה בפייסבוק](https://www.facebook.com/LittleBigEconomy/)
