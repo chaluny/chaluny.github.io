@@ -121,6 +121,11 @@ img {
 .date {
   font-style: italic;
   color: $gray;
+  white-space: nowrap;
+}
+
+ .fb-share-button {
+  white-space: nowrap;
 }
 
 // Specify the color of the selection
