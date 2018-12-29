@@ -4,15 +4,15 @@ layout: default
 
 <div class="posts">
   {% for post in site.posts %}
-  <li>
     <article class="post">
+        <li>
 
       <h1><a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a></h1>
 
-      <div class="entry" style="display: inline">
+      <div class="entry">
         {{ post.excerpt }}<a href="{{ site.baseurl }}{{ post.url }}" class="read-more">קרא\י עוד...</a>
       </div> 
+     </li>
     </article>
-  </li>
   {% endfor %}
 </div>
