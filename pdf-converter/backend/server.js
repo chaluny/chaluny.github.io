@@ -131,6 +131,12 @@ async function processJob(jobId, filePath) {
 
     const structure = await analyzeStructure(text, images, jobId);
 
+    job.progress = 75;
+    job.progressStep = 'Processing detected figures...';
+
+    // Brief yield so the client can pick up the intermediate progress
+    await new Promise(r => setTimeout(r, 200));
+
     job.progress = 90;
     job.progressStep = 'Finalizing structure...';
 

@@ -1,27 +1,53 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const fs = require('fs');
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
+const MODEL = 'claude-sonnet-4-6';
 
-const MODEL = 'claude-sonnet-4-5';
+/**
+ * Creates an Anthropic client using the best available authentication:
+ *  1. ANTHROPIC_API_KEY env var (standard API key)
+ *  2. CLAUDE_SESSION_INGRESS_TOKEN_FILE (Claude Code on the web session token, Bearer auth)
+ *
+ * Re-reads the session token on every call so expiry/rotation is handled transparently.
+ */
+function createClient() {
+  if (process.env.ANTHROPIC_API_KEY) {
+    return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+
+  const tokenFile = process.env.CLAUDE_SESSION_INGRESS_TOKEN_FILE;
+  if (tokenFile) {
+    try {
+      const token = fs.readFileSync(tokenFile, 'utf8').trim();
+      if (token) {
+        return new Anthropic({ authToken: token });
+      }
+    } catch (e) {
+      console.warn('Could not read session token file:', e.message);
+    }
+  }
+
+  // Last resort — SDK will throw a clear error on the first call
+  return new Anthropic({ apiKey: 'missing' });
+}
 
 /**
  * Analyzes extracted PDF text (and optional page images) using Claude
  * to produce a structured document outline with summaries and figure detection.
  */
 async function analyzeStructure(text, images, jobId) {
+  const client = createClient();
+
   // Truncate very long documents to fit context window
   const maxChars = 80000;
   const truncatedText = text.length > maxChars
     ? text.slice(0, maxChars) + '\n\n[... document truncated for analysis ...]'
     : text;
 
-  // Build the prompt
   const systemPrompt = buildSystemPrompt();
   const userContent = buildUserContent(truncatedText, images);
 
-  console.log(`[${jobId}] Sending document to Claude for analysis...`);
+  console.log(`[${jobId}] Sending document to Claude (${MODEL}) for analysis...`);
 
   const response = await client.messages.create({
     model: MODEL,
@@ -32,10 +58,9 @@ async function analyzeStructure(text, images, jobId) {
 
   const rawContent = response.content[0].text;
 
-  // Extract JSON from response (Claude sometimes wraps it in markdown)
-  const structure = parseJsonFromResponse(rawContent);
+  console.log(`[${jobId}] Claude response received, parsing JSON...`);
 
-  // Validate and enrich the structure
+  const structure = parseJsonFromResponse(rawContent);
   return normalizeStructure(structure);
 }
 
@@ -88,7 +113,6 @@ For figures: scan for "Figure", "Fig.", "Table", "Chart", "Graph" references and
 function buildUserContent(text, images) {
   const content = [];
 
-  // Add text content
   content.push({
     type: 'text',
     text: `Please analyze this PDF document content and return the structured JSON outline:\n\n${text}`
