@@ -557,9 +557,7 @@ async function confirmStructure() {
 
     if (!res.ok) throw new Error('Failed to confirm structure');
 
-    // Store confirmed structure and signal ready for Step 4
-    structure = confirmed;
-    showReportReadyNotice();
+    buildAndShowReport(confirmed);
 
   } catch (err) {
     alert('Error confirming structure: ' + err.message);
@@ -567,27 +565,6 @@ async function confirmStructure() {
   }
 }
 
-function showReportReadyNotice() {
-  // For now, show a friendly message in the confirm step.
-  // Step 4 (report generation & display) will be implemented in the next phase.
-  const actions = document.querySelectorAll('.confirm-actions');
-  actions.forEach(el => {
-    el.innerHTML = `
-      <div style="text-align:center;padding:2rem;background:var(--green-100);border-radius:var(--radius-lg);width:100%;max-width:520px;">
-        <div style="font-size:3rem;margin-bottom:1rem;">✅</div>
-        <h3 style="color:var(--green-600);font-size:1.3rem;margin-bottom:.5rem;">Structure Confirmed!</h3>
-        <p style="color:var(--gray-600);margin-bottom:1.5rem;">
-          Your document structure has been saved. Report generation (Step 4) will be available shortly.
-        </p>
-        <button onclick="location.reload()" class="btn-ghost">Start Over</button>
-      </div>
-    `;
-  });
-
-  // Disable confirm buttons in header
-  const topBtn = $('btn-confirm-top');
-  if (topBtn) { topBtn.disabled = true; topBtn.textContent = '✓ Confirmed'; }
-}
 
 $('btn-confirm-top').addEventListener('click', confirmStructure);
 $('btn-confirm-bottom').addEventListener('click', confirmStructure);
@@ -614,3 +591,252 @@ function capitalise(s) {
   if (!s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/* ============================================================
+   STEP 4 — REPORT VIEWER
+   ============================================================ */
+
+function buildAndShowReport(confirmed) {
+  const figIndex = buildFigureIndex(structure);
+
+  $('report-nav-title').textContent = confirmed.title || 'Report';
+
+  const toc     = $('report-toc');
+  const content = $('report-content');
+  toc.innerHTML     = '';
+  content.innerHTML = '';
+
+  const sectionEls = [];
+
+  // Cover
+  const cover = document.createElement('div');
+  cover.className = 'report-cover';
+  cover.innerHTML = `<h1 class="report-doc-title">${escHtml(confirmed.title || 'Document Report')}</h1>`;
+  content.appendChild(cover);
+
+  (confirmed.chapters || []).forEach((ch, ci) => {
+    // TOC — chapter
+    const tocCh = document.createElement('div');
+    tocCh.className = 'toc-chapter';
+    tocCh.dataset.target = `section-ch-${ch.id}`;
+    tocCh.innerHTML = `
+      <span class="toc-ch-num">${ci + 1}</span>
+      <span class="toc-ch-label">${escHtml(ch.title)}</span>
+    `;
+    tocCh.addEventListener('click', () => scrollReportTo(`section-ch-${ch.id}`));
+    toc.appendChild(tocCh);
+
+    // Chapter section
+    const chSection = document.createElement('section');
+    chSection.id = `section-ch-${ch.id}`;
+    chSection.className = 'report-chapter';
+
+    const eyebrow = document.createElement('div');
+    eyebrow.className = 'chapter-eyebrow';
+    eyebrow.textContent = `Chapter ${ci + 1}`;
+
+    const heading = document.createElement('h2');
+    heading.className = 'chapter-heading';
+    heading.textContent = ch.title;
+
+    chSection.appendChild(eyebrow);
+    chSection.appendChild(heading);
+
+    if (ch.summary) {
+      const summary = document.createElement('div');
+      summary.className = 'chapter-summary';
+      summary.innerHTML = formatSummaryParagraphs(ch.summary);
+      chSection.appendChild(summary);
+    }
+
+    sectionEls.push({ el: chSection, id: chSection.id });
+
+    // Subchapters
+    (ch.subchapters || []).forEach(sub => {
+      // TOC — sub
+      const tocSub = document.createElement('div');
+      tocSub.className = 'toc-sub';
+      tocSub.dataset.target = `section-sub-${sub.id}`;
+      tocSub.textContent = sub.title;
+      tocSub.addEventListener('click', () => scrollReportTo(`section-sub-${sub.id}`));
+      toc.appendChild(tocSub);
+
+      // Subchapter section
+      const subSection = document.createElement('section');
+      subSection.id = `section-sub-${sub.id}`;
+      subSection.className = 'report-subchapter';
+
+      const subHeading = document.createElement('h3');
+      subHeading.className = 'subchapter-heading';
+      subHeading.textContent = sub.title;
+      subSection.appendChild(subHeading);
+
+      if (sub.summary) {
+        const subSummary = document.createElement('div');
+        subSummary.className = 'subchapter-summary';
+        subSummary.innerHTML = formatSummaryParagraphs(sub.summary);
+        subSection.appendChild(subSummary);
+      }
+
+      // Figures
+      const figs = sub.figures || [];
+      if (figs.length > 0) {
+        const figContainer = document.createElement('div');
+        figContainer.className = 'figure-callouts';
+        let hasVisible = false;
+
+        figs.forEach(figRef => {
+          const orig    = figIndex[figRef.id] || {};
+          const type    = orig.type || 'unknown';
+          const emoji   = { chart: '📊', table: '📋', image: '🖼', unknown: '❓' }[type] || '❓';
+          const caption = orig.caption || '';
+          const page    = orig.page;
+          const interp  = figRef.interpretation || orig.interpretation || '';
+
+          if (!caption && !interp) return;
+          hasVisible = true;
+
+          const callout = document.createElement('div');
+          callout.className = 'figure-callout';
+          callout.innerHTML = `
+            <div class="figure-callout-icon" aria-hidden="true">${emoji}</div>
+            <div class="figure-callout-body">
+              <div class="figure-callout-label">${escHtml(capitalise(type))}${page ? ` &middot; Page ${page}` : ''}</div>
+              ${caption ? `<p class="figure-callout-caption">${escHtml(caption)}</p>` : ''}
+              ${interp  ? `<p class="figure-callout-interp">${escHtml(interp)}</p>`   : ''}
+            </div>
+          `;
+          figContainer.appendChild(callout);
+        });
+
+        if (hasVisible) subSection.appendChild(figContainer);
+      }
+
+      chSection.appendChild(subSection);
+      sectionEls.push({ el: subSection, id: subSection.id });
+    });
+
+    content.appendChild(chSection);
+  });
+
+  setupScrollSpy(sectionEls, content);
+  showStep('step-report');
+}
+
+function buildFigureIndex(doc) {
+  const idx = {};
+  if (!doc || !doc.chapters) return idx;
+  doc.chapters.forEach(ch => {
+    (ch.subchapters || []).forEach(sub => {
+      (sub.figures || []).forEach(fig => { idx[fig.id] = fig; });
+    });
+  });
+  return idx;
+}
+
+function formatSummaryParagraphs(text) {
+  if (!text) return '';
+  return text
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0)
+    .map(l => `<p>${escHtml(l)}</p>`)
+    .join('');
+}
+
+function scrollReportTo(sectionId) {
+  const target    = document.getElementById(sectionId);
+  const container = $('report-content');
+  if (!target || !container) return;
+  const offset = target.getBoundingClientRect().top
+               - container.getBoundingClientRect().top
+               + container.scrollTop - 24;
+  container.scrollTo({ top: offset, behavior: 'smooth' });
+}
+
+function setupScrollSpy(sectionEls, scrollContainer) {
+  let activeId = null;
+
+  function setActive(id) {
+    if (id === activeId) return;
+    activeId = id;
+    document.querySelectorAll('#report-toc [data-target]').forEach(el => {
+      el.classList.toggle('active', el.dataset.target === id);
+    });
+    if (id) {
+      const activeEl = document.querySelector(`#report-toc [data-target="${id}"]`);
+      if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function onScroll() {
+    const cTop = scrollContainer.getBoundingClientRect().top;
+    let found  = null;
+    for (const { el, id } of sectionEls) {
+      if (el.getBoundingClientRect().top - cTop <= 80) found = id;
+    }
+    setActive(found);
+  }
+
+  scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+  setTimeout(onScroll, 50);
+}
+
+function downloadReportHTML() {
+  const title    = $('report-nav-title').textContent;
+  const coverEl  = $('report-content').querySelector('.report-cover');
+  const chapters = Array.from($('report-content').querySelectorAll('.report-chapter'));
+  const coverHTML    = coverEl  ? coverEl.outerHTML  : '';
+  const chaptersHTML = chapters.map(el => el.outerHTML).join('\n');
+
+  const standalone = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escHtml(title)}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2937; line-height: 1.6; background: #f9fafb; }
+    .report-cover { max-width: 760px; margin: 0 auto 4rem; padding: 4rem 2rem 3rem; border-bottom: 2px solid #e5e7eb; }
+    .report-doc-title { font-size: 2rem; font-weight: 800; color: #111827; line-height: 1.2; }
+    .report-chapter { max-width: 760px; margin: 0 auto 4rem; padding: 0 2rem 3rem; border-bottom: 1px solid #f3f4f6; }
+    .report-chapter:last-child { border-bottom: none; }
+    .chapter-eyebrow { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #2563eb; margin-bottom: .5rem; }
+    .chapter-heading { font-size: 1.6rem; font-weight: 800; color: #111827; line-height: 1.2; margin-bottom: 1.1rem; }
+    .chapter-summary { font-size: 1rem; color: #4b5563; line-height: 1.8; }
+    .chapter-summary p + p { margin-top: .75rem; }
+    .report-subchapter { margin-top: 2.25rem; padding-left: 1.5rem; border-left: 3px solid #e5e7eb; }
+    .subchapter-heading { font-size: 1.1rem; font-weight: 700; color: #1f2937; margin-bottom: .75rem; }
+    .subchapter-summary { font-size: .9rem; color: #4b5563; line-height: 1.75; }
+    .subchapter-summary p + p { margin-top: .625rem; }
+    .figure-callouts { margin-top: 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
+    .figure-callout { display: flex; gap: 1rem; align-items: flex-start; background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid #bfdbfe; border-radius: 8px; padding: 1rem 1.25rem; }
+    .figure-callout-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1; }
+    .figure-callout-body { flex: 1; }
+    .figure-callout-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #2563eb; margin-bottom: .35rem; }
+    .figure-callout-caption { font-size: .9rem; font-weight: 600; color: #374151; margin-bottom: .35rem; }
+    .figure-callout-interp { font-size: .875rem; color: #6b7280; line-height: 1.6; }
+    @media print { body { background: white; } }
+  </style>
+</head>
+<body>
+  ${coverHTML}
+  ${chaptersHTML}
+</body>
+</html>`;
+
+  const blob = new Blob([standalone], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = (title || 'report').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() + '.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+$('btn-report-back').addEventListener('click', () => showStep('step-confirm'));
+$('btn-report-new').addEventListener('click',  () => location.reload());
+$('btn-download-html').addEventListener('click', downloadReportHTML);

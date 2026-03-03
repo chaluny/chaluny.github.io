@@ -194,6 +194,40 @@
       </main>
     </div>
 
+    <!-- ===== STEP 4: REPORT ===== -->
+    <div id="step-report" class="step">
+
+      <header class="report-topnav">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#2563eb"/>
+            <path d="M8 10h10M8 15h16M8 20h12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>ReportCraft</span>
+        </div>
+        <h1 id="report-nav-title" class="report-nav-title"></h1>
+        <div class="report-nav-actions">
+          <button id="btn-report-back" class="btn-ghost btn-sm">&#8592; Edit Structure</button>
+          <button id="btn-report-new" class="btn-ghost btn-sm">New Report</button>
+          <button id="btn-download-html" class="btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Download HTML
+          </button>
+        </div>
+      </header>
+
+      <div class="report-layout">
+        <aside class="report-sidebar">
+          <div class="toc-title">Contents</div>
+          <nav id="report-toc" class="report-toc"></nav>
+        </aside>
+        <main id="report-content" class="report-content"></main>
+      </div>
+
+    </div>
+
   </div><!-- #app -->
 
   <script src="app.js"></script>
