@@ -117,6 +117,38 @@ app.post('/api/job/:id/confirm', async (req, res) => {
   res.json({ success: true, message: 'Structure confirmed. Ready to generate report.' });
 });
 
+// Inject full section text (by page range) and figure image URLs into the structure
+function injectContentIntoStructure(structure, rawText, images) {
+  // Parse extracted text into per-page map using [PAGE N] markers
+  const pageTexts = {};
+  const pageRegex = /\[PAGE (\d+)\]([\s\S]*?)(?=\[PAGE \d+\]|$)/g;
+  let match;
+  while ((match = pageRegex.exec(rawText)) !== null) {
+    pageTexts[parseInt(match[1], 10)] = match[2].trim();
+  }
+
+  // Map page number → image relative URL
+  const imageByPage = {};
+  images.forEach(img => {
+    if (img.relativePath) imageByPage[img.page] = img.relativePath;
+  });
+
+  structure.chapters.forEach(ch => {
+    (ch.subchapters || []).forEach(sub => {
+      const [start, end] = Array.isArray(sub.pages) ? sub.pages : [1, 1];
+      const parts = [];
+      for (let p = start; p <= Math.min(end, start + 10); p++) {
+        if (pageTexts[p]) parts.push(pageTexts[p]);
+      }
+      sub.content = parts.join('\n\n');
+
+      (sub.figures || []).forEach(fig => {
+        if (imageByPage[fig.page]) fig.imageSrc = imageByPage[fig.page];
+      });
+    });
+  });
+}
+
 // Async job processor
 async function processJob(jobId, filePath) {
   const job = jobs[jobId];
@@ -134,6 +166,9 @@ async function processJob(jobId, filePath) {
 
     job.progress = 75;
     job.progressStep = 'Processing detected figures...';
+
+    // Inject full section text and image paths
+    injectContentIntoStructure(structure, text, images);
 
     // Brief yield so the client can pick up the intermediate progress
     await new Promise(r => setTimeout(r, 200));

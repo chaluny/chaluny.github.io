@@ -1062,6 +1062,45 @@ body {
   border-left-color: var(--blue-400);
 }
 
+/* --- Hamburger toggle (mobile only) --- */
+
+.btn-nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: .375rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  transition: background .15s;
+}
+
+.btn-nav-toggle:hover { background: var(--gray-100); }
+
+.btn-nav-toggle span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--gray-600);
+  border-radius: 2px;
+  transition: background .15s;
+}
+
+/* Nav overlay (mobile) */
+
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 299;
+}
+
+.nav-overlay.open { display: block; }
+
 /* --- Main content area --- */
 
 .report-content {
@@ -1116,6 +1155,34 @@ body {
 }
 
 .chapter-summary p + p { margin-top: .75rem; }
+
+/* Section label (Summary / Full text) */
+
+.section-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--gray-400);
+  margin-top: 1.25rem;
+  margin-bottom: .375rem;
+}
+
+.full-text-label {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+/* Full extracted text block */
+
+.section-full-text {
+  font-size: .925rem;
+  color: var(--gray-700);
+  line-height: 1.85;
+}
+
+.section-full-text p + p { margin-top: .875rem; }
 
 .report-subchapter {
   margin-top: 2.5rem;
@@ -1189,14 +1256,48 @@ body {
   line-height: 1.6;
 }
 
+/* Page image inside a figure callout */
+
+.figure-page-image {
+  display: block;
+  margin-top: .875rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+}
+
+.figure-page-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  background: white;
+}
+
 @media (max-width: 900px) {
   .report-layout { grid-template-columns: 200px 1fr; }
   .report-content { padding: 2rem; }
 }
 
 @media (max-width: 700px) {
+  .btn-nav-toggle { display: flex; }
   .report-layout { grid-template-columns: 1fr; }
-  .report-sidebar { display: none; }
+  /* Sidebar becomes a fixed drawer */
+  .report-sidebar {
+    position: fixed;
+    top: 60px;
+    left: -260px;
+    width: 256px;
+    height: calc(100vh - 60px);
+    z-index: 300;
+    transition: left .25s ease;
+    box-shadow: none;
+  }
+  .report-sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, .18);
+  }
   .report-content { padding: 1.5rem; }
   .report-nav-actions .btn-ghost:first-child { display: none; }
 }

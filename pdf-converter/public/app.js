@@ -6,10 +6,11 @@
 'use strict';
 
 const API = '/api';
-let currentJobId = null;
-let currentFile   = null;
-let pollTimer     = null;
-let structure     = null;   // The current (editable) structure
+let currentJobId   = null;
+let currentFile    = null;
+let pollTimer      = null;
+let structure      = null;   // Original AI-analyzed structure (for content + figure metadata)
+let confirmedData  = null;   // User-confirmed structure
 
 /* ============================================================
    UTILITY HELPERS
@@ -597,7 +598,9 @@ function capitalise(s) {
    ============================================================ */
 
 function buildAndShowReport(confirmed) {
+  confirmedData  = confirmed;
   const figIndex = buildFigureIndex(structure);
+  const subIndex = buildSubIndex(structure);
 
   $('report-nav-title').textContent = confirmed.title || 'Report';
 
@@ -631,22 +634,16 @@ function buildAndShowReport(confirmed) {
     chSection.id = `section-ch-${ch.id}`;
     chSection.className = 'report-chapter';
 
-    const eyebrow = document.createElement('div');
-    eyebrow.className = 'chapter-eyebrow';
-    eyebrow.textContent = `Chapter ${ci + 1}`;
-
-    const heading = document.createElement('h2');
-    heading.className = 'chapter-heading';
-    heading.textContent = ch.title;
-
-    chSection.appendChild(eyebrow);
-    chSection.appendChild(heading);
+    chSection.innerHTML = `
+      <div class="chapter-eyebrow">Chapter ${ci + 1}</div>
+      <h2 class="chapter-heading">${escHtml(ch.title)}</h2>
+    `;
 
     if (ch.summary) {
-      const summary = document.createElement('div');
-      summary.className = 'chapter-summary';
-      summary.innerHTML = formatSummaryParagraphs(ch.summary);
-      chSection.appendChild(summary);
+      chSection.insertAdjacentHTML('beforeend', `
+        <div class="section-label">Summary</div>
+        <div class="chapter-summary">${formatSummaryParagraphs(ch.summary)}</div>
+      `);
     }
 
     sectionEls.push({ el: chSection, id: chSection.id });
@@ -666,16 +663,25 @@ function buildAndShowReport(confirmed) {
       subSection.id = `section-sub-${sub.id}`;
       subSection.className = 'report-subchapter';
 
-      const subHeading = document.createElement('h3');
-      subHeading.className = 'subchapter-heading';
-      subHeading.textContent = sub.title;
-      subSection.appendChild(subHeading);
+      subSection.innerHTML = `<h3 class="subchapter-heading">${escHtml(sub.title)}</h3>`;
 
       if (sub.summary) {
-        const subSummary = document.createElement('div');
-        subSummary.className = 'subchapter-summary';
-        subSummary.innerHTML = formatSummaryParagraphs(sub.summary);
-        subSection.appendChild(subSummary);
+        subSection.insertAdjacentHTML('beforeend', `
+          <div class="section-label">Summary</div>
+          <div class="subchapter-summary">${formatSummaryParagraphs(sub.summary)}</div>
+        `);
+      }
+
+      // Full extracted text
+      const origSub = subIndex[sub.id] || {};
+      if (origSub.content) {
+        const bodyHtml = formatBodyText(origSub.content);
+        if (bodyHtml) {
+          subSection.insertAdjacentHTML('beforeend', `
+            <div class="section-label full-text-label">Full text</div>
+            <div class="section-full-text">${bodyHtml}</div>
+          `);
+        }
       }
 
       // Figures
@@ -686,15 +692,21 @@ function buildAndShowReport(confirmed) {
         let hasVisible = false;
 
         figs.forEach(figRef => {
-          const orig    = figIndex[figRef.id] || {};
-          const type    = orig.type || 'unknown';
-          const emoji   = { chart: '📊', table: '📋', image: '🖼', unknown: '❓' }[type] || '❓';
-          const caption = orig.caption || '';
-          const page    = orig.page;
-          const interp  = figRef.interpretation || orig.interpretation || '';
+          const orig     = figIndex[figRef.id] || {};
+          const type     = orig.type || 'unknown';
+          const emoji    = { chart: '📊', table: '📋', image: '🖼', unknown: '❓' }[type] || '❓';
+          const caption  = orig.caption || '';
+          const page     = orig.page;
+          const interp   = figRef.interpretation || orig.interpretation || '';
+          const imageSrc = orig.imageSrc || '';
 
-          if (!caption && !interp) return;
+          if (!caption && !interp && !imageSrc) return;
           hasVisible = true;
+
+          const imgHtml = imageSrc ? `
+            <a class="figure-page-image" href="${escAttr(imageSrc)}" target="_blank" rel="noopener" title="Open full page">
+              <img src="${escAttr(imageSrc)}" alt="Page ${page}" loading="lazy" />
+            </a>` : '';
 
           const callout = document.createElement('div');
           callout.className = 'figure-callout';
@@ -704,6 +716,7 @@ function buildAndShowReport(confirmed) {
               <div class="figure-callout-label">${escHtml(capitalise(type))}${page ? ` &middot; Page ${page}` : ''}</div>
               ${caption ? `<p class="figure-callout-caption">${escHtml(caption)}</p>` : ''}
               ${interp  ? `<p class="figure-callout-interp">${escHtml(interp)}</p>`   : ''}
+              ${imgHtml}
             </div>
           `;
           figContainer.appendChild(callout);
@@ -732,6 +745,37 @@ function buildFigureIndex(doc) {
     });
   });
   return idx;
+}
+
+function buildSubIndex(doc) {
+  const idx = {};
+  if (!doc || !doc.chapters) return idx;
+  doc.chapters.forEach(ch => {
+    (ch.subchapters || []).forEach(sub => { idx[sub.id] = sub; });
+  });
+  return idx;
+}
+
+function formatBodyText(raw) {
+  if (!raw) return '';
+  // Strip [PAGE N] markers
+  const stripped = raw.replace(/\[PAGE \d+\]/g, '');
+  // Collect non-empty lines, group into paragraphs on blank lines
+  const lines = stripped.split('\n').map(l => l.trim());
+  const paragraphs = [];
+  let current = [];
+  for (const line of lines) {
+    if (line.length === 0) {
+      if (current.length > 0) { paragraphs.push(current.join(' ')); current = []; }
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) paragraphs.push(current.join(' '));
+  return paragraphs
+    .filter(p => p.length > 5)
+    .map(p => `<p>${escHtml(p)}</p>`)
+    .join('');
 }
 
 function formatSummaryParagraphs(text) {
@@ -782,49 +826,202 @@ function setupScrollSpy(sectionEls, scrollContainer) {
   setTimeout(onScroll, 50);
 }
 
-function downloadReportHTML() {
+async function downloadReportHTML() {
+  const btn = $('btn-download-html');
+  const origText = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Preparing…';
+
   const title    = $('report-nav-title').textContent;
-  const coverEl  = $('report-content').querySelector('.report-cover');
-  const chapters = Array.from($('report-content').querySelectorAll('.report-chapter'));
-  const coverHTML    = coverEl  ? coverEl.outerHTML  : '';
-  const chaptersHTML = chapters.map(el => el.outerHTML).join('\n');
+  const figIndex = buildFigureIndex(structure);
+  const subIndex = buildSubIndex(structure);
+
+  // Collect all image URLs to embed as base64
+  const imageUrls = new Set();
+  structure?.chapters?.forEach(ch =>
+    ch.subchapters?.forEach(sub =>
+      sub.figures?.forEach(fig => { if (fig.imageSrc) imageUrls.add(fig.imageSrc); })
+    )
+  );
+  const imageB64 = {};
+  await Promise.all([...imageUrls].map(async url => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      imageB64[url] = await new Promise(r => {
+        const fr = new FileReader();
+        fr.onload = e => r(e.target.result);
+        fr.readAsDataURL(blob);
+      });
+    } catch {}
+  }));
+
+  // Build TOC
+  const tocHtml = (confirmedData?.chapters || []).map((ch, ci) => {
+    const subs = (ch.subchapters || []).map(sub =>
+      `<a class="dl-toc-sub" href="#section-ch-${ch.id}-sub-${sub.id}">${escHtml(sub.title)}</a>`
+    ).join('');
+    return `<a class="dl-toc-ch" href="#section-ch-${ch.id}">
+      <span class="dl-num">${ci + 1}</span><span>${escHtml(ch.title)}</span>
+    </a>${subs}`;
+  }).join('');
+
+  // Build content
+  const bodyHtml = (confirmedData?.chapters || []).map((ch, ci) => {
+    const subsHtml = (ch.subchapters || []).map(sub => {
+      const origSub = subIndex[sub.id] || {};
+      const bodyText = origSub.content ? formatBodyText(origSub.content) : '';
+      const figsHtml = (sub.figures || []).map(figRef => {
+        const orig    = figIndex[figRef.id] || {};
+        const type    = orig.type || 'unknown';
+        const emoji   = { chart: '📊', table: '📋', image: '🖼', unknown: '❓' }[type] || '❓';
+        const caption = orig.caption || '';
+        const page    = orig.page;
+        const interp  = figRef.interpretation || orig.interpretation || '';
+        const rawSrc  = orig.imageSrc || '';
+        const imgSrc  = imageB64[rawSrc] || rawSrc;
+        if (!caption && !interp && !imgSrc) return '';
+        return `<div class="figure-callout">
+          <div class="fc-icon">${emoji}</div>
+          <div class="fc-body">
+            <div class="fc-label">${escHtml(capitalise(type))}${page ? ` · Page ${page}` : ''}</div>
+            ${caption ? `<p class="fc-caption">${escHtml(caption)}</p>` : ''}
+            ${interp  ? `<p class="fc-interp">${escHtml(interp)}</p>`   : ''}
+            ${imgSrc  ? `<img class="fc-img" src="${escAttr(imgSrc)}" alt="Page ${page}" />` : ''}
+          </div>
+        </div>`;
+      }).filter(Boolean).join('');
+
+      return `<section id="section-ch-${ch.id}-sub-${sub.id}" class="dl-sub">
+        <h3 class="dl-sub-h">${escHtml(sub.title)}</h3>
+        ${sub.summary ? `<div class="dl-label">Summary</div><div class="dl-summary">${formatSummaryParagraphs(sub.summary)}</div>` : ''}
+        ${bodyText    ? `<div class="dl-label dl-full-label">Full text</div><div class="dl-body">${bodyText}</div>` : ''}
+        ${figsHtml    ? `<div class="dl-figs">${figsHtml}</div>` : ''}
+      </section>`;
+    }).join('');
+
+    return `<section id="section-ch-${ch.id}" class="dl-chapter">
+      <div class="dl-eyebrow">Chapter ${ci + 1}</div>
+      <h2 class="dl-ch-h">${escHtml(ch.title)}</h2>
+      ${ch.summary ? `<div class="dl-label">Summary</div><div class="dl-ch-summary">${formatSummaryParagraphs(ch.summary)}</div>` : ''}
+      ${subsHtml}
+    </section>`;
+  }).join('');
 
   const standalone = `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escHtml(title)}</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2937; line-height: 1.6; background: #f9fafb; }
-    .report-cover { max-width: 760px; margin: 0 auto 4rem; padding: 4rem 2rem 3rem; border-bottom: 2px solid #e5e7eb; }
-    .report-doc-title { font-size: 2rem; font-weight: 800; color: #111827; line-height: 1.2; }
-    .report-chapter { max-width: 760px; margin: 0 auto 4rem; padding: 0 2rem 3rem; border-bottom: 1px solid #f3f4f6; }
-    .report-chapter:last-child { border-bottom: none; }
-    .chapter-eyebrow { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #2563eb; margin-bottom: .5rem; }
-    .chapter-heading { font-size: 1.6rem; font-weight: 800; color: #111827; line-height: 1.2; margin-bottom: 1.1rem; }
-    .chapter-summary { font-size: 1rem; color: #4b5563; line-height: 1.8; }
-    .chapter-summary p + p { margin-top: .75rem; }
-    .report-subchapter { margin-top: 2.25rem; padding-left: 1.5rem; border-left: 3px solid #e5e7eb; }
-    .subchapter-heading { font-size: 1.1rem; font-weight: 700; color: #1f2937; margin-bottom: .75rem; }
-    .subchapter-summary { font-size: .9rem; color: #4b5563; line-height: 1.75; }
-    .subchapter-summary p + p { margin-top: .625rem; }
-    .figure-callouts { margin-top: 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
-    .figure-callout { display: flex; gap: 1rem; align-items: flex-start; background: #f9fafb; border: 1px solid #e5e7eb; border-left: 4px solid #bfdbfe; border-radius: 8px; padding: 1rem 1.25rem; }
-    .figure-callout-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1; }
-    .figure-callout-body { flex: 1; }
-    .figure-callout-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #2563eb; margin-bottom: .35rem; }
-    .figure-callout-caption { font-size: .9rem; font-weight: 600; color: #374151; margin-bottom: .35rem; }
-    .figure-callout-interp { font-size: .875rem; color: #6b7280; line-height: 1.6; }
-    @media print { body { background: white; } }
-  </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(title)}</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;background:#f9fafb;line-height:1.6}
+/* Top bar */
+.dl-topbar{position:fixed;top:0;left:0;right:0;height:56px;background:white;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;padding:0 1.25rem;gap:.875rem;z-index:200;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.dl-topbar-title{flex:1;font-weight:700;font-size:.95rem;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-hamburger{display:none;flex-direction:column;gap:4px;background:none;border:none;cursor:pointer;padding:.375rem}
+.dl-hamburger span{display:block;width:20px;height:2px;background:#374151;border-radius:2px}
+/* Layout */
+.dl-layout{display:grid;grid-template-columns:256px 1fr;min-height:100vh;padding-top:56px}
+/* Sidebar */
+.dl-sidebar{position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;background:white;border-right:1px solid #e5e7eb;padding:1.25rem 0}
+.dl-toc-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;padding:0 1.25rem .875rem}
+a.dl-toc-ch{display:flex;align-items:center;gap:.625rem;padding:.5rem 1.25rem;font-size:.85rem;font-weight:600;color:#4b5563;text-decoration:none;border-left:3px solid transparent;transition:background .15s,color .15s}
+a.dl-toc-ch:hover,a.dl-toc-ch.active{background:#eff6ff;color:#1d4ed8;border-left-color:#2563eb}
+a.dl-toc-ch.active .dl-num{background:#2563eb;color:white}
+.dl-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;background:#e5e7eb;color:#4b5563;font-size:.7rem;font-weight:700;border-radius:50%;flex-shrink:0;transition:background .15s,color .15s}
+a.dl-toc-sub{display:block;padding:.35rem 1.25rem .35rem 2.75rem;font-size:.8rem;color:#9ca3af;text-decoration:none;border-left:3px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s,color .15s}
+a.dl-toc-sub:hover,a.dl-toc-sub.active{background:#eff6ff;color:#2563eb;border-left-color:#93c5fd;font-weight:500}
+/* Overlay */
+.dl-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199}
+.dl-overlay.open{display:block}
+/* Main */
+.dl-main{padding:3.5rem 4rem;max-width:none}
+.dl-cover{max-width:740px;margin-bottom:4rem;padding-bottom:3rem;border-bottom:2px solid #e5e7eb}
+.dl-cover h1{font-size:2.25rem;font-weight:800;color:#111827;line-height:1.2}
+.dl-chapter{max-width:740px;margin-bottom:4.5rem;padding-bottom:3.5rem;border-bottom:1px solid #f3f4f6}
+.dl-chapter:last-child{border-bottom:none}
+.dl-eyebrow{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#2563eb;margin-bottom:.625rem}
+.dl-ch-h{font-size:1.75rem;font-weight:800;color:#111827;line-height:1.2;margin-bottom:1.25rem}
+.dl-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:.375rem;margin-top:1.25rem}
+.dl-full-label{margin-top:1.75rem;padding-top:1.25rem;border-top:1px solid #f3f4f6}
+.dl-ch-summary,.dl-summary{font-size:1rem;color:#4b5563;line-height:1.8}
+.dl-ch-summary p+p,.dl-summary p+p{margin-top:.75rem}
+.dl-sub{margin-top:2.5rem;padding-left:1.75rem;border-left:3px solid #e5e7eb}
+.dl-sub-h{font-size:1.125rem;font-weight:700;color:#1f2937;margin-bottom:.875rem}
+.dl-body{font-size:.925rem;color:#374151;line-height:1.85}
+.dl-body p+p{margin-top:.875rem}
+.dl-figs{margin-top:1.5rem;display:flex;flex-direction:column;gap:.875rem}
+.figure-callout{display:flex;gap:1rem;align-items:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-left:4px solid #bfdbfe;border-radius:8px;padding:1rem 1.25rem}
+.fc-icon{font-size:1.5rem;flex-shrink:0;line-height:1;margin-top:.15rem}
+.fc-body{flex:1;min-width:0}
+.fc-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#2563eb;margin-bottom:.375rem}
+.fc-caption{font-size:.9rem;font-weight:600;color:#374151;margin-bottom:.375rem}
+.fc-interp{font-size:.875rem;color:#6b7280;line-height:1.6}
+.fc-img{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;background:white;border:1px solid #e5e7eb;border-radius:6px;margin-top:.75rem}
+/* Mobile */
+@media(max-width:700px){
+  .dl-hamburger{display:flex}
+  .dl-layout{grid-template-columns:1fr}
+  .dl-sidebar{position:fixed;top:56px;left:-260px;width:256px;height:calc(100vh - 56px);z-index:200;transition:left .25s;box-shadow:none}
+  .dl-sidebar.open{left:0;box-shadow:4px 0 20px rgba(0,0,0,.15)}
+  .dl-main{padding:1.5rem}
+}
+@media print{body{background:white}.dl-topbar,.dl-sidebar,.dl-overlay{display:none}.dl-layout{display:block}.dl-main{padding:0}}
+</style>
 </head>
 <body>
-  ${coverHTML}
-  ${chaptersHTML}
+<div class="dl-overlay" id="dl-overlay"></div>
+<div class="dl-topbar">
+  <button class="dl-hamburger" id="dl-hamburger" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <span class="dl-topbar-title">${escHtml(title)}</span>
+</div>
+<div class="dl-layout">
+  <nav class="dl-sidebar" id="dl-sidebar">
+    <div class="dl-toc-title">Contents</div>
+    ${tocHtml}
+  </nav>
+  <main class="dl-main">
+    <div class="dl-cover"><h1>${escHtml(title)}</h1></div>
+    ${bodyHtml}
+  </main>
+</div>
+<script>
+(function(){
+  var ham=document.getElementById('dl-hamburger');
+  var nav=document.getElementById('dl-sidebar');
+  var ovl=document.getElementById('dl-overlay');
+  function open(){nav.classList.add('open');ovl.classList.add('open')}
+  function close(){nav.classList.remove('open');ovl.classList.remove('open')}
+  ham.addEventListener('click',function(){nav.classList.contains('open')?close():open()});
+  ovl.addEventListener('click',close);
+  // Close nav on link click (mobile)
+  nav.querySelectorAll('a').forEach(function(a){a.addEventListener('click',function(){
+    close();
+    var id=a.getAttribute('href').slice(1);
+    var el=document.getElementById(id);
+    if(el){setTimeout(function(){el.scrollIntoView({behavior:'smooth'})},50)}
+  })});
+  // Scroll-spy
+  var links=document.querySelectorAll('a.dl-toc-ch,a.dl-toc-sub');
+  var sections=Array.from(document.querySelectorAll('.dl-chapter,.dl-sub'));
+  function spy(){
+    var active=null;
+    sections.forEach(function(s){if(s.getBoundingClientRect().top<=80)active=s.id});
+    links.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+active)});
+  }
+  window.addEventListener('scroll',spy,{passive:true});
+  spy();
+})();
+</script>
 </body>
 </html>`;
+
+  btn.disabled = false;
+  btn.innerHTML = origText;
 
   const blob = new Blob([standalone], { type: 'text/html;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -839,4 +1036,14 @@ function downloadReportHTML() {
 
 $('btn-report-back').addEventListener('click', () => showStep('step-confirm'));
 $('btn-report-new').addEventListener('click',  () => location.reload());
-$('btn-download-html').addEventListener('click', downloadReportHTML);
+$('btn-download-html').addEventListener('click', () => downloadReportHTML().catch(console.error));
+
+// Mobile nav hamburger for the live report viewer
+$('btn-nav-toggle').addEventListener('click', () => {
+  $('report-sidebar').classList.toggle('open');
+  $('nav-overlay').classList.toggle('open');
+});
+$('nav-overlay').addEventListener('click', () => {
+  $('report-sidebar').classList.remove('open');
+  $('nav-overlay').classList.remove('open');
+});

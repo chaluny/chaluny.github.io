@@ -198,6 +198,9 @@
     <div id="step-report" class="step">
 
       <header class="report-topnav">
+        <button id="btn-nav-toggle" class="btn-nav-toggle" aria-label="Toggle navigation">
+          <span></span><span></span><span></span>
+        </button>
         <div class="logo">
           <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
             <rect width="32" height="32" rx="8" fill="#2563eb"/>
@@ -219,7 +222,8 @@
       </header>
 
       <div class="report-layout">
-        <aside class="report-sidebar">
+        <div id="nav-overlay" class="nav-overlay"></div>
+        <aside id="report-sidebar" class="report-sidebar">
           <div class="toc-title">Contents</div>
           <nav id="report-toc" class="report-toc"></nav>
         </aside>

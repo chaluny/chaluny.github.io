@@ -69,7 +69,7 @@ function buildSystemPrompt() {
 
 RULES:
 1. Identify the document title, chapters, and sub-chapters based on headings, numbering patterns, and content flow.
-2. For each chapter and sub-chapter, write a concise 2-4 sentence summary of the content.
+2. For each chapter and sub-chapter, write a 2-4 sentence summary. Write in the author's own voice and tone — do NOT use meta-commentary like "This section discusses...", "The chapter covers...", or "The author explains...". Write the substance directly as if you are the author: e.g. instead of "The Executive Summary argues that housing policy has fundamentally failed" write "Housing policy has fundamentally failed to...". Include the main arguments and key points.
 3. Detect figures, charts, tables, and images referenced in the text.
 4. Return ONLY valid JSON — no markdown fences, no explanation text, just the raw JSON object.
 
