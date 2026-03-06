@@ -618,26 +618,30 @@ function buildAndShowReport(confirmed) {
   content.appendChild(cover);
 
   (confirmed.chapters || []).forEach((ch, ci) => {
-    // TOC — chapter
-    const tocCh = document.createElement('div');
-    tocCh.className = 'toc-chapter';
-    tocCh.dataset.target = `section-ch-${ch.id}`;
-    tocCh.innerHTML = `
-      <span class="toc-ch-num">${ci + 1}</span>
-      <span class="toc-ch-label">${escHtml(ch.title)}</span>
-    `;
-    tocCh.addEventListener('click', () => scrollReportTo(`section-ch-${ch.id}`));
-    toc.appendChild(tocCh);
+    // TOC — chapter (omit if no title, e.g. editor implicit root)
+    if (ch.title) {
+      const tocCh = document.createElement('div');
+      tocCh.className = 'toc-chapter';
+      tocCh.dataset.target = `section-ch-${ch.id}`;
+      tocCh.innerHTML = `
+        <span class="toc-ch-num">${ci + 1}</span>
+        <span class="toc-ch-label">${escHtml(ch.title)}</span>
+      `;
+      tocCh.addEventListener('click', () => scrollReportTo(`section-ch-${ch.id}`));
+      toc.appendChild(tocCh);
+    }
 
     // Chapter section
     const chSection = document.createElement('section');
     chSection.id = `section-ch-${ch.id}`;
     chSection.className = 'report-chapter';
 
-    chSection.innerHTML = `
-      <div class="chapter-eyebrow">Chapter ${ci + 1}</div>
-      <h2 class="chapter-heading">${escHtml(ch.title)}</h2>
-    `;
+    if (ch.title) {
+      chSection.innerHTML = `
+        <div class="chapter-eyebrow">Chapter ${ci + 1}</div>
+        <h2 class="chapter-heading">${escHtml(ch.title)}</h2>
+      `;
+    }
 
     if (ch.summary) {
       chSection.insertAdjacentHTML('beforeend', `
@@ -650,20 +654,24 @@ function buildAndShowReport(confirmed) {
 
     // Subchapters
     (ch.subchapters || []).forEach(sub => {
-      // TOC — sub
-      const tocSub = document.createElement('div');
-      tocSub.className = 'toc-sub';
-      tocSub.dataset.target = `section-sub-${sub.id}`;
-      tocSub.textContent = sub.title;
-      tocSub.addEventListener('click', () => scrollReportTo(`section-sub-${sub.id}`));
-      toc.appendChild(tocSub);
+      // TOC — sub (omit if no title)
+      if (sub.title) {
+        const tocSub = document.createElement('div');
+        tocSub.className = 'toc-sub';
+        tocSub.dataset.target = `section-sub-${sub.id}`;
+        tocSub.textContent = sub.title;
+        tocSub.addEventListener('click', () => scrollReportTo(`section-sub-${sub.id}`));
+        toc.appendChild(tocSub);
+      }
 
       // Subchapter section
       const subSection = document.createElement('section');
       subSection.id = `section-sub-${sub.id}`;
       subSection.className = 'report-subchapter';
 
-      subSection.innerHTML = `<h3 class="subchapter-heading">${escHtml(sub.title)}</h3>`;
+      if (sub.title) {
+        subSection.innerHTML = `<h3 class="subchapter-heading">${escHtml(sub.title)}</h3>`;
+      }
 
       if (sub.summary) {
         subSection.insertAdjacentHTML('beforeend', `
@@ -672,9 +680,13 @@ function buildAndShowReport(confirmed) {
         `);
       }
 
-      // Full extracted text
+      // Full text: htmlContent (editor) takes priority over extracted PDF text
       const origSub = subIndex[sub.id] || {};
-      if (origSub.content) {
+      if (origSub.htmlContent) {
+        subSection.insertAdjacentHTML('beforeend', `
+          <div class="section-full-text">${origSub.htmlContent}</div>
+        `);
+      } else if (origSub.content) {
         const bodyHtml = formatBodyText(origSub.content);
         if (bodyHtml) {
           subSection.insertAdjacentHTML('beforeend', `
@@ -871,7 +883,10 @@ async function downloadReportHTML() {
   const bodyHtml = (confirmedData?.chapters || []).map((ch, ci) => {
     const subsHtml = (ch.subchapters || []).map(sub => {
       const origSub = subIndex[sub.id] || {};
-      const bodyText = origSub.content ? formatBodyText(origSub.content) : '';
+      const bodyText  = origSub.htmlContent
+        ? origSub.htmlContent
+        : (origSub.content ? formatBodyText(origSub.content) : '');
+      const bodyLabel = !origSub.htmlContent && origSub.content;
       const figsHtml = (sub.figures || []).map(figRef => {
         const orig    = figIndex[figRef.id] || {};
         const type    = orig.type || 'unknown';
@@ -896,7 +911,7 @@ async function downloadReportHTML() {
       return `<section id="section-ch-${ch.id}-sub-${sub.id}" class="dl-sub">
         <h3 class="dl-sub-h">${escHtml(sub.title)}</h3>
         ${sub.summary ? `<div class="dl-label">Summary</div><div class="dl-summary">${formatSummaryParagraphs(sub.summary)}</div>` : ''}
-        ${bodyText    ? `<div class="dl-label dl-full-label">Full text</div><div class="dl-body">${bodyText}</div>` : ''}
+        ${bodyText    ? `${bodyLabel ? '<div class="dl-label dl-full-label">Full text</div>' : ''}<div class="dl-body">${bodyText}</div>` : ''}
         ${figsHtml    ? `<div class="dl-figs">${figsHtml}</div>` : ''}
       </section>`;
     }).join('');
@@ -960,6 +975,8 @@ a.dl-toc-sub:hover,a.dl-toc-sub.active{background:#eff6ff;color:#2563eb;border-l
 .fc-caption{font-size:.9rem;font-weight:600;color:#374151;margin-bottom:.375rem}
 .fc-interp{font-size:.875rem;color:#6b7280;line-height:1.6}
 .fc-img{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;background:white;border:1px solid #e5e7eb;border-radius:6px;margin-top:.75rem}
+.dl-body .report-blockquote{border-left:3px solid #d97706;padding:.75rem 1.25rem;color:#6b7280;font-style:italic;background:#fffbeb;border-radius:0 6px 6px 0;margin:.75rem 0}
+.dl-body .report-reference{font-size:.85rem;color:#6b7280;padding-left:1rem;border-left:2px solid #e5e7eb;margin:.5rem 0}
 /* Mobile */
 @media(max-width:700px){
   .dl-hamburger{display:flex}
@@ -1033,6 +1050,177 @@ a.dl-toc-sub:hover,a.dl-toc-sub.active{background:#eff6ff;color:#2563eb;border-l
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/* ============================================================
+   STEP: EDITOR — standalone block-based document editor
+   ============================================================ */
+
+const BLOCK_META = {
+  chapter:    { label: 'CHAPTER', placeholder: 'Chapter title…',   emoji: '📌' },
+  subchapter: { label: 'SECTION', placeholder: 'Section heading…', emoji: '📄' },
+  text:       { label: 'TEXT',    placeholder: 'Start typing…',     emoji: '✏️'  },
+  quote:      { label: 'QUOTE',   placeholder: 'Enter quote…',      emoji: '💬' },
+  reference:  { label: 'REF',     placeholder: 'Add reference…',    emoji: '🔗' },
+};
+
+let editorOpenMenu = null;
+
+function closeEditorMenus() {
+  if (editorOpenMenu) { editorOpenMenu.classList.add('hidden'); editorOpenMenu = null; }
+}
+document.addEventListener('click', e => {
+  if (editorOpenMenu && !e.target.closest('.block-type-picker')) closeEditorMenus();
+});
+
+function createEditorBlock(type = 'text', content = '') {
+  const id   = `blk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+  const meta = BLOCK_META[type] || BLOCK_META.text;
+
+  const menuItems = Object.entries(BLOCK_META).map(([t, m]) =>
+    `<button type="button" data-type="${t}" class="${t === type ? 'active' : ''}">${m.emoji} ${m.label.charAt(0) + m.label.slice(1).toLowerCase()}</button>`
+  ).join('');
+
+  const div = document.createElement('div');
+  div.className    = `editor-block editor-block--${type}`;
+  div.dataset.id   = id;
+  div.dataset.type = type;
+  div.innerHTML = `
+    <div class="block-type-picker">
+      <button type="button" class="block-type-btn" title="Change type">${meta.label}</button>
+      <div class="block-type-menu hidden">${menuItems}</div>
+    </div>
+    <div class="block-content" contenteditable="true"
+         data-placeholder="${meta.placeholder}"
+         spellcheck="true">${content ? escHtml(content) : ''}</div>
+    <div class="block-actions">
+      <button type="button" class="block-move-btn" data-dir="up"   title="Move up">↑</button>
+      <button type="button" class="block-move-btn" data-dir="down" title="Move down">↓</button>
+      <button type="button" class="block-delete-btn" title="Delete">✕</button>
+    </div>
+  `;
+
+  // Type picker
+  const typeBtn  = div.querySelector('.block-type-btn');
+  const typeMenu = div.querySelector('.block-type-menu');
+  typeBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (editorOpenMenu && editorOpenMenu !== typeMenu) closeEditorMenus();
+    typeMenu.classList.toggle('hidden');
+    editorOpenMenu = typeMenu.classList.contains('hidden') ? null : typeMenu;
+  });
+  typeMenu.querySelectorAll('button[data-type]').forEach(btn => {
+    btn.addEventListener('click', () => { setEditorBlockType(div, btn.dataset.type); closeEditorMenus(); });
+  });
+
+  // Move up / down
+  div.querySelectorAll('.block-move-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.dir === 'up') {
+        const prev = div.previousElementSibling;
+        if (prev) div.parentNode.insertBefore(div, prev);
+      } else {
+        const next = div.nextElementSibling;
+        if (next) div.parentNode.insertBefore(next, div);
+      }
+    });
+  });
+
+  // Delete (keep at least one block)
+  div.querySelector('.block-delete-btn').addEventListener('click', () => {
+    if ($('editor-blocks').querySelectorAll('.editor-block').length > 1) div.remove();
+  });
+
+  return div;
+}
+
+function setEditorBlockType(blockEl, newType) {
+  const meta    = BLOCK_META[newType] || BLOCK_META.text;
+  const oldType = blockEl.dataset.type;
+  blockEl.classList.replace(`editor-block--${oldType}`, `editor-block--${newType}`);
+  blockEl.dataset.type = newType;
+  blockEl.querySelector('.block-type-btn').textContent = meta.label;
+  blockEl.querySelector('.block-content').dataset.placeholder = meta.placeholder;
+  blockEl.querySelectorAll('.block-type-menu button[data-type]').forEach(b => {
+    b.classList.toggle('active', b.dataset.type === newType);
+  });
+}
+
+function initEditor() {
+  const container = $('editor-blocks');
+  container.innerHTML = '';
+  $('editor-doc-title').value = '';
+  container.appendChild(createEditorBlock('chapter',    ''));
+  container.appendChild(createEditorBlock('subchapter', ''));
+  container.appendChild(createEditorBlock('text',       ''));
+  showStep('step-editor');
+  const first = container.querySelector('.block-content');
+  if (first) first.focus();
+}
+
+function buildStructureFromEditor() {
+  const title    = $('editor-doc-title').value.trim() || 'Untitled Report';
+  const blockEls = Array.from($('editor-blocks').querySelectorAll('.editor-block'));
+
+  const doc = { title, chapters: [] };
+  let ch  = null;
+  let sub = null;
+
+  function ensureCh() {
+    if (!ch) { ch = { id: 'ch-root', title: '', summary: '', subchapters: [] }; doc.chapters.push(ch); }
+  }
+  function ensureSub() {
+    ensureCh();
+    if (!sub) { sub = { id: `sub-root-${Date.now()}`, title: '', summary: '', content: '', htmlContent: '', figures: [] }; ch.subchapters.push(sub); }
+  }
+
+  blockEls.forEach(el => {
+    const type = el.dataset.type;
+    const id   = el.dataset.id;
+    const text = (el.querySelector('.block-content').innerText || '').trim();
+
+    if (type === 'chapter') {
+      ch = { id, title: text, summary: '', subchapters: [] };
+      doc.chapters.push(ch);
+      sub = null;
+    } else if (type === 'subchapter') {
+      ensureCh();
+      sub = { id, title: text, summary: '', content: '', htmlContent: '', figures: [] };
+      ch.subchapters.push(sub);
+    } else {
+      ensureSub();
+      if (!text) return;
+      if (type === 'text')      sub.htmlContent += `<p>${escHtml(text)}</p>`;
+      if (type === 'quote')     sub.htmlContent += `<blockquote class="report-blockquote">${escHtml(text)}</blockquote>`;
+      if (type === 'reference') sub.htmlContent += `<p class="report-reference">${escHtml(text)}</p>`;
+    }
+  });
+
+  return doc;
+}
+
+function generateReportFromEditor() {
+  closeEditorMenus();
+  const doc = buildStructureFromEditor();
+  const hasContent = doc.chapters.some(c =>
+    c.title || c.subchapters.some(s => s.title || s.htmlContent)
+  );
+  if (!hasContent) { alert('Please add some content first.'); return; }
+  structure = doc;         // so subIndex lookup works in buildAndShowReport
+  buildAndShowReport(doc);
+}
+
+$('btn-create-blank').addEventListener('click', initEditor);
+$('btn-editor-back').addEventListener('click', () => showStep('step-upload'));
+$('btn-editor-generate').addEventListener('click', generateReportFromEditor);
+
+document.querySelectorAll('.editor-add-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const block = createEditorBlock(btn.dataset.addType);
+    $('editor-blocks').appendChild(block);
+    block.querySelector('.block-content').focus();
+    block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+});
 
 $('btn-report-back').addEventListener('click', () => showStep('step-confirm'));
 $('btn-report-new').addEventListener('click',  () => location.reload());

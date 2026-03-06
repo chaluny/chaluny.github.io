@@ -72,6 +72,20 @@
           <p id="upload-error" class="error-msg hidden"></p>
         </div>
 
+        <div class="upload-alt">
+          <div class="upload-alt-divider"><span>or</span></div>
+          <button id="btn-create-blank" class="btn-create-blank">
+            <span class="btn-create-blank-icon">✏️</span>
+            <div class="btn-create-blank-text">
+              <strong>Create from scratch</strong>
+              <span>No PDF needed — add headings, text, quotes &amp; references</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 8h8M9 5l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
         <div class="features">
           <div class="feature">
             <div class="feature-icon">📄</div>
@@ -192,6 +206,50 @@
 
         </div>
       </main>
+    </div>
+
+    <!-- ===== STEP: EDITOR ===== -->
+    <div id="step-editor" class="step">
+
+      <header class="editor-topnav">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#2563eb"/>
+            <path d="M8 10h10M8 15h16M8 20h12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>ReportCraft</span>
+        </div>
+        <input id="editor-doc-title" class="editor-doc-title" placeholder="Document title…" />
+        <div class="editor-nav-actions">
+          <button id="btn-editor-back" class="btn-ghost btn-sm">&#8592; Back</button>
+          <button id="btn-editor-generate" class="btn-primary btn-sm">
+            Generate Report
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7h8M7 4l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="editor-main">
+        <div class="editor-container">
+
+          <div id="editor-blocks" class="editor-blocks">
+            <!-- blocks injected by JS -->
+          </div>
+
+          <div class="editor-toolbar">
+            <span class="editor-toolbar-label">Add block</span>
+            <button class="editor-add-btn" data-add-type="chapter">📌 Chapter</button>
+            <button class="editor-add-btn" data-add-type="subchapter">📄 Section</button>
+            <button class="editor-add-btn" data-add-type="text">✏️ Text</button>
+            <button class="editor-add-btn" data-add-type="quote">💬 Quote</button>
+            <button class="editor-add-btn" data-add-type="reference">🔗 Reference</button>
+          </div>
+
+        </div>
+      </main>
+
     </div>
 
     <!-- ===== STEP 4: REPORT ===== -->
