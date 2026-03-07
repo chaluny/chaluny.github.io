@@ -158,7 +158,7 @@ function runMarkerCli(filePath, outputDir) {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Marker failed (exit ${code})${stderr ? '\n' + stderr.slice(0, 500) : ''}`));
+        reject(new Error(`Marker failed (exit ${code})${stderr ? '\n' + stderr.slice(-2000) : ''}`));
       }
     });
 

@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "warmup": "python3 -c \"from marker.models import create_model_dict; print('Downloading marker models (one-time setup)...'); create_model_dict(); print('Models ready.')\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
