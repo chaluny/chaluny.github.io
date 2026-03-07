@@ -8,10 +8,63 @@
  * has an `htmlContent` field (ready-to-render HTML) and `figures` array.
  */
 
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+/**
+ * Locate the marker_single executable.
+ * pip installs scripts into a directory that may not be on Node's PATH,
+ * so we ask Python itself where it is via shutil.which.
+ */
+function findMarkerExecutable() {
+  // 1. Try PATH directly (works when pip bin dir is on PATH)
+  try {
+    execFileSync('marker_single', ['--help'], { stdio: 'ignore' });
+    return 'marker_single';
+  } catch (_) {}
+
+  // 2. Ask Python where it is
+  const pythons = ['python3', 'python'];
+  for (const py of pythons) {
+    try {
+      const result = execFileSync(
+        py,
+        ['-c', "import shutil, sys; p = shutil.which('marker_single'); sys.stdout.write(p if p else '')"],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+      ).trim();
+      if (result && fs.existsSync(result)) return result;
+    } catch (_) {}
+  }
+
+  // 3. Common pip install locations
+  const home = os.homedir();
+  const candidates = [
+    '/usr/local/bin/marker_single',
+    path.join(home, '.local/bin/marker_single'),
+    path.join(home, 'Library/Python/3.13/bin/marker_single'),
+    path.join(home, 'Library/Python/3.12/bin/marker_single'),
+    path.join(home, 'Library/Python/3.11/bin/marker_single'),
+    path.join(home, 'Library/Python/3.10/bin/marker_single'),
+    path.join(home, 'AppData/Roaming/Python/Python313/Scripts/marker_single.exe'),
+    path.join(home, 'AppData/Roaming/Python/Python312/Scripts/marker_single.exe'),
+    path.join(home, 'AppData/Roaming/Python/Python311/Scripts/marker_single.exe'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+
+  throw new Error(
+    'marker_single not found. Install it with: pip install marker-pdf\n' +
+    'Then restart the server.'
+  );
+}
+
+const MARKER_EXE = (() => {
+  try { return findMarkerExecutable(); }
+  catch (e) { console.warn('[markerService]', e.message); return null; }
+})();
 
 // Block types we want to accumulate as section content
 const CONTENT_TYPES = new Set([
@@ -73,9 +126,15 @@ async function convertPdfWithMarker(filePath, jobId, onProgress) {
 
 /** Run marker_single CLI and resolve when done (or reject on error). */
 function runMarkerCli(filePath, outputDir) {
+  const exe = MARKER_EXE;
+  if (!exe) {
+    return Promise.reject(new Error(
+      'marker_single not found. Run: pip install marker-pdf  then restart the server.'
+    ));
+  }
   return new Promise((resolve, reject) => {
     execFile(
-      'marker_single',
+      exe,
       [
         filePath,
         '--output_format', 'json',
