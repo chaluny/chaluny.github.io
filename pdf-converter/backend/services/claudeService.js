@@ -59,10 +59,10 @@ async function generateSectionSummaries(structure, onProgress) {
 
   const total = subsWithContent.length;
   let done = 0;
+  const CONCURRENCY = 5;
 
-  for (const { sub, text } of subsWithContent) {
-    const snippet = text.slice(0, 3000); // keep within token budget
-
+  async function summariseOne({ sub, text }) {
+    const snippet = text.slice(0, 3000);
     try {
       const response = await client.messages.create({
         model: MODEL,
@@ -82,12 +82,17 @@ async function generateSectionSummaries(structure, onProgress) {
       console.warn(`Summary failed for "${sub.title}":`, err.message);
       sub.summary = null;
     }
-
     done++;
     if (onProgress) {
       const pct = 80 + Math.round((done / total) * 15);
       onProgress(pct, `Generating AI summaries… (${done}/${total})`);
     }
+  }
+
+  // Run in parallel batches of CONCURRENCY
+  for (let i = 0; i < subsWithContent.length; i += CONCURRENCY) {
+    const batch = subsWithContent.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(summariseOne));
   }
 
   // Roll up chapter-level summaries from the first subchapter with a summary
