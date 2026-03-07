@@ -1638,6 +1638,87 @@ body {
 }
 
 /* ============================================================
+   AI SUMMARIES TOGGLE (upload step)
+   ============================================================ */
+
+.ai-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .75rem 1rem;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ai-toggle input[type="checkbox"] { display: none; }
+
+.ai-toggle-box {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 5px;
+  border: 2px solid var(--blue-300);
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+
+.ai-toggle input:checked + .ai-toggle-box {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+}
+
+.ai-toggle input:checked + .ai-toggle-box::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 9px;
+  border: 2px solid white;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.ai-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  font-size: .95rem;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.ai-toggle-note {
+  font-size: .8rem;
+  font-weight: 400;
+  color: var(--gray-500);
+}
+
+/* marker-produced figures in report */
+.marker-figure {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+.marker-figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.08);
+}
+.marker-figure figcaption {
+  margin-top: .5rem;
+  font-size: .85rem;
+  color: var(--gray-500);
+  font-style: italic;
+}
+
+/* ============================================================
    PRINT
    ============================================================ */
 

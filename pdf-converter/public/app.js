@@ -116,6 +116,8 @@ async function uploadFile(file) {
 
   const formData = new FormData();
   formData.append('pdf', file);
+  const aiSummaries = $('chk-ai-summaries') && $('chk-ai-summaries').checked;
+  formData.append('aiSummaries', aiSummaries ? 'true' : 'false');
 
   try {
     const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });

@@ -6,21 +6,20 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
-const { extractPdfContent } = require('./services/pdfService');
-const { analyzeStructure } = require('./services/claudeService');
+const { convertPdfWithMarker } = require('./services/markerService');
+const { generateSectionSummaries } = require('./services/claudeService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// In-memory job store (production would use Redis/DB)
+// In-memory job store
 const jobs = {};
 
-// Multer config for PDF uploads
+// Multer — save uploads to disk as <jobId>.pdf
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads');
@@ -42,18 +41,21 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+  limits: { fileSize: 100 * 1024 * 1024 } // 100 MB
 });
 
-// POST /api/upload
+// ─── POST /api/upload ─────────────────────────────────────────────────────────
 app.post('/api/upload', upload.single('pdf'), async (req, res) => {
   try {
     const jobId = req.jobId || path.basename(req.file.filename, '.pdf');
     const filePath = req.file.path;
+    // Optional flag: generate AI summaries after marker conversion
+    const aiSummaries = req.body.aiSummaries === 'true';
 
     jobs[jobId] = {
       id: jobId,
       filePath,
+      aiSummaries,
       status: 'uploaded',
       progress: 0,
       progressStep: 'File received',
@@ -63,15 +65,19 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
       createdAt: Date.now()
     };
 
-    // Start async processing
-    processJob(jobId, filePath);
+    // Start async processing (fire-and-forget)
+    processJob(jobId, filePath, aiSummaries);
 
-    // Quick initial parse to get page count and title
-    const pdfParse = require('pdf-parse');
-    const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdfParse(dataBuffer, { max: 1 });
-    const pageCount = pdfData.numpages;
-    const titleGuess = pdfData.info?.Title || req.file.originalname.replace('.pdf', '');
+    // Quick page-count estimate using pdf-parse (fast, no ML models)
+    let pageCount = null;
+    let titleGuess = req.file.originalname.replace(/\.pdf$/i, '');
+    try {
+      const pdfParse = require('pdf-parse');
+      const buf = fs.readFileSync(filePath);
+      const pdfData = await pdfParse(buf, { max: 1 });
+      pageCount = pdfData.numpages;
+      titleGuess = pdfData.info?.Title || titleGuess;
+    } catch (_) { /* non-fatal */ }
 
     jobs[jobId].pageCount = pageCount;
     jobs[jobId].titleGuess = titleGuess;
@@ -83,103 +89,58 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
   }
 });
 
-// GET /api/job/:id/status
+// ─── GET /api/job/:id/status ──────────────────────────────────────────────────
 app.get('/api/job/:id/status', (req, res) => {
   const job = jobs[req.params.id];
   if (!job) return res.status(404).json({ error: 'Job not found' });
-
-  res.json({
-    status: job.status,
-    progress: job.progress,
-    progressStep: job.progressStep,
-    error: job.error
-  });
+  res.json({ status: job.status, progress: job.progress, progressStep: job.progressStep, error: job.error });
 });
 
-// GET /api/job/:id/structure
+// ─── GET /api/job/:id/structure ───────────────────────────────────────────────
 app.get('/api/job/:id/structure', (req, res) => {
   const job = jobs[req.params.id];
   if (!job) return res.status(404).json({ error: 'Job not found' });
   if (job.status !== 'analyzed' && job.status !== 'confirmed') {
-    return res.status(400).json({ error: 'Structure not ready yet', status: job.status });
+    return res.status(400).json({ error: 'Structure not ready', status: job.status });
   }
   res.json(job.structure);
 });
 
-// POST /api/job/:id/confirm
-app.post('/api/job/:id/confirm', async (req, res) => {
+// ─── POST /api/job/:id/confirm ────────────────────────────────────────────────
+app.post('/api/job/:id/confirm', (req, res) => {
   const job = jobs[req.params.id];
   if (!job) return res.status(404).json({ error: 'Job not found' });
-
   job.confirmedStructure = req.body.structure;
   job.status = 'confirmed';
-
-  res.json({ success: true, message: 'Structure confirmed. Ready to generate report.' });
+  res.json({ success: true });
 });
 
-// Inject full section text (by page range) and figure image URLs into the structure
-function injectContentIntoStructure(structure, rawText, images) {
-  // Parse extracted text into per-page map using [PAGE N] markers
-  const pageTexts = {};
-  const pageRegex = /\[PAGE (\d+)\]([\s\S]*?)(?=\[PAGE \d+\]|$)/g;
-  let match;
-  while ((match = pageRegex.exec(rawText)) !== null) {
-    pageTexts[parseInt(match[1], 10)] = match[2].trim();
-  }
-
-  // Map page number → image relative URL
-  const imageByPage = {};
-  images.forEach(img => {
-    if (img.relativePath) imageByPage[img.page] = img.relativePath;
-  });
-
-  structure.chapters.forEach(ch => {
-    (ch.subchapters || []).forEach(sub => {
-      const [start, end] = Array.isArray(sub.pages) ? sub.pages : [1, 1];
-      const parts = [];
-      for (let p = start; p <= Math.min(end, start + 10); p++) {
-        if (pageTexts[p]) parts.push(pageTexts[p]);
-      }
-      sub.content = parts.join('\n\n');
-
-      (sub.figures || []).forEach(fig => {
-        if (imageByPage[fig.page]) fig.imageSrc = imageByPage[fig.page];
-      });
-    });
-  });
-}
-
-// Async job processor
-async function processJob(jobId, filePath) {
+// ─── Async job processor ──────────────────────────────────────────────────────
+async function processJob(jobId, filePath, aiSummaries) {
   const job = jobs[jobId];
   try {
     job.status = 'processing';
     job.progress = 10;
-    job.progressStep = 'Extracting text from PDF...';
+    job.progressStep = 'Starting Marker conversion...';
 
-    const { text, pageCount, images } = await extractPdfContent(filePath, jobId);
+    const structure = await convertPdfWithMarker(filePath, jobId, (pct, msg) => {
+      job.progress = pct;
+      job.progressStep = msg;
+    });
 
-    job.progress = 40;
-    job.progressStep = 'Analyzing document structure with AI...';
-
-    const structure = await analyzeStructure(text, images, jobId);
-
-    job.progress = 75;
-    job.progressStep = 'Processing detected figures...';
-
-    // Inject full section text and image paths
-    injectContentIntoStructure(structure, text, images);
-
-    // Brief yield so the client can pick up the intermediate progress
-    await new Promise(r => setTimeout(r, 200));
-
-    job.progress = 90;
-    job.progressStep = 'Finalizing structure...';
+    if (aiSummaries) {
+      job.progress = 80;
+      job.progressStep = 'Generating AI summaries...';
+      await generateSectionSummaries(structure, (pct, msg) => {
+        job.progress = pct;
+        job.progressStep = msg;
+      });
+    }
 
     job.structure = structure;
     job.status = 'analyzed';
     job.progress = 100;
-    job.progressStep = 'Analysis complete';
+    job.progressStep = 'Complete';
 
   } catch (err) {
     console.error(`Job ${jobId} failed:`, err);
@@ -188,7 +149,7 @@ async function processJob(jobId, filePath) {
   }
 }
 
-// Serve frontend
+// ─── Serve frontend ───────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '../public')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
