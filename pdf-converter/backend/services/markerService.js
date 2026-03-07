@@ -133,7 +133,7 @@ function runMarkerCli(filePath, outputDir) {
     ));
   }
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       exe,
       [
         filePath,
@@ -141,15 +141,30 @@ function runMarkerCli(filePath, outputDir) {
         '--output_dir', outputDir,
         '--disable_multiprocessing',  // safer in a child process
       ],
-      { timeout: 10 * 60 * 1000, maxBuffer: 500 * 1024 * 1024 },
-      (err, _stdout, stderr) => {
-        if (err) {
-          reject(new Error(`Marker failed: ${err.message}${stderr ? '\n' + stderr.slice(0, 500) : ''}`));
-        } else {
-          resolve();
-        }
-      }
+      { timeout: 10 * 60 * 1000 }
     );
+
+    // Forward marker's progress output to the server terminal
+    let stderr = '';
+    if (child.stdout) child.stdout.pipe(process.stdout);
+    if (child.stderr) {
+      child.stderr.on('data', chunk => {
+        process.stderr.write(chunk);
+        stderr += chunk;
+      });
+    }
+
+    child.on('close', code => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Marker failed (exit ${code})${stderr ? '\n' + stderr.slice(0, 500) : ''}`));
+      }
+    });
+
+    child.on('error', err => {
+      reject(new Error(`Marker failed: ${err.message}${stderr ? '\n' + stderr.slice(0, 500) : ''}`));
+    });
   });
 }
 
