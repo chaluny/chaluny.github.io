@@ -139,7 +139,6 @@ function runMarkerCli(filePath, outputDir) {
         filePath,
         '--output_format', 'json',
         '--output_dir', outputDir,
-        '--disable_multiprocessing',  // safer in a child process
       ],
       { timeout: 10 * 60 * 1000 }
     );
