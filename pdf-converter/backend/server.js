@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
-const { convertPdfWithMarker } = require('./services/markerService');
+const { convertPdfWithMarker, downloadMarkerModels } = require('./services/markerService');
 const { generateSectionSummaries } = require('./services/claudeService');
 
 const app = express();
@@ -155,6 +155,10 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`PDF Converter server running on http://localhost:${PORT}`);
+// Pre-download marker models before accepting requests so the first conversion
+// doesn't get killed mid-download. Resolves even on failure so server still starts.
+downloadMarkerModels().then(() => {
+  app.listen(PORT, () => {
+    console.log(`PDF Converter server running on http://localhost:${PORT}`);
+  });
 });

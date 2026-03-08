@@ -8,7 +8,7 @@
  * has an `htmlContent` field (ready-to-render HTML) and `figures` array.
  */
 
-const { execFile, execFileSync } = require('child_process');
+const { execFile, execFileSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -331,4 +331,43 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;');
 }
 
-module.exports = { convertPdfWithMarker };
+/**
+ * Pre-download all marker ML models. Call once at server startup before
+ * accepting requests, so the first conversion doesn't timeout during download.
+ * No timeout — downloads can take 10–40 min on a slow connection.
+ */
+function downloadMarkerModels() {
+  const pythons = ['python3', 'python'];
+  let python = null;
+  for (const py of pythons) {
+    try { execFileSync(py, ['--version'], { stdio: 'ignore' }); python = py; break; } catch (_) {}
+  }
+  if (!python) {
+    console.warn('[markerService] Python not found — skipping model pre-download');
+    return Promise.resolve();
+  }
+
+  console.log('[markerService] Pre-downloading marker models (this may take several minutes on first run)...');
+  return new Promise((resolve) => {
+    const child = spawn(
+      python,
+      ['-c', 'from marker.models import create_model_dict; create_model_dict(); print("marker models ready")'],
+      { stdio: ['ignore', 'inherit', 'inherit'] }
+      // No timeout — let the download complete however long it takes
+    );
+    child.on('close', code => {
+      if (code === 0) {
+        console.log('[markerService] Marker models ready.');
+      } else {
+        console.warn(`[markerService] Model pre-download exited with code ${code} — will retry on first conversion`);
+      }
+      resolve(); // always resolve so server still starts
+    });
+    child.on('error', err => {
+      console.warn('[markerService] Model pre-download error:', err.message);
+      resolve();
+    });
+  });
+}
+
+module.exports = { convertPdfWithMarker, downloadMarkerModels };

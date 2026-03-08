@@ -1212,6 +1212,57 @@ function generateReportFromEditor() {
 }
 
 $('btn-create-blank').addEventListener('click', initEditor);
+
+$('btn-upload-md').addEventListener('click', () => $('md-input').click());
+$('md-input').addEventListener('change', () => {
+  const file = $('md-input').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => loadMdIntoEditor(e.target.result, file.name);
+  reader.readAsText(file);
+  $('md-input').value = '';
+});
+
+function parseMdToBlocks(md) {
+  const lines = md.split('\n');
+  let title = '';
+  const blocks = [];
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (!line) continue;
+    if (/^# /.test(line)) {
+      const text = line.slice(2).trim();
+      if (!title) { title = text; continue; }
+      blocks.push({ type: 'chapter', text });
+    } else if (/^## /.test(line)) {
+      blocks.push({ type: 'subchapter', text: line.slice(3).trim() });
+    } else if (/^#{3,} /.test(line)) {
+      blocks.push({ type: 'subchapter', text: line.replace(/^#{3,}\s+/, '') });
+    } else if (/^> /.test(line)) {
+      blocks.push({ type: 'quote', text: line.slice(2).trim() });
+    } else {
+      blocks.push({ type: 'text', text: line });
+    }
+  }
+  return { title, blocks };
+}
+
+function loadMdIntoEditor(mdText, filename) {
+  const { title, blocks } = parseMdToBlocks(mdText);
+  const container = $('editor-blocks');
+  container.innerHTML = '';
+  $('editor-doc-title').value = title || filename.replace(/\.md$/i, '');
+  if (blocks.length === 0) {
+    container.appendChild(createEditorBlock('chapter', ''));
+    container.appendChild(createEditorBlock('text', ''));
+  } else {
+    for (const b of blocks) {
+      container.appendChild(createEditorBlock(b.type, b.text));
+    }
+  }
+  showStep('step-editor');
+}
+
 $('btn-editor-back').addEventListener('click', () => showStep('step-upload'));
 $('btn-editor-generate').addEventListener('click', generateReportFromEditor);
 
